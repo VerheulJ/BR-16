@@ -1,10 +1,12 @@
 Proteomics and Phosphoproteomics Analysis Project
 
 This repository contains the code and documentation for conducting proteomics and phosphoproteomics analyses in R, generating visualizations, and performing API queries to STRING in Python. The project focuses on analyzing proteomic and phosphoproteomic data from various experiments, aiming to identify patterns, variations, and correlations to better understand the biological effects of different experimental conditions.
+
 #############################################################################################
 Author
 
 Contact: julia.verheul@ibima.eu
+
 This project was developed by Julia Verheul, a PhD student in the Neuropsychopharmacology group at IBIMA in Málaga.
 #############################################################################################
 Project Description
@@ -14,6 +16,7 @@ The project includes two main analyses:
     Alcohol Effect: Analysis of the impact of alcohol consumption on male rats, focusing on proteomic changes in the hippocampus.
     Alcohol Effect and Acute Immobilization Stress: A combined analysis to study the effect of alcohol exposure along with acute immobilization stress in male rats, focusing on alterations in the hippocampus.
 #############################################################################################
+
 Repository Structure
 
     data/: Folder containing processed data files and/or intermediate results. Both proteomics and phosphoproteomics data in this folder are normalized and ready for analysis.
@@ -21,6 +24,7 @@ Repository Structure
     python/: Contains Python scripts for API queries, including interactions with the STRING database to retrieve additional data on proteins of interest.
     results/: Folder for storing final results and generated graphics, including specific results for phosphoproteomics.
 #############################################################################################
+
 Requirements
 
 This project uses R and Python for data analysis, as well as the SEAOP software. Be sure to install the following packages and software before running the scripts:
