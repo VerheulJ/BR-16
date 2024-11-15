@@ -1,79 +1,46 @@
-Proyecto de Análisis de Proteómica y fosfoproteómica
+Proteomics and Phosphoproteomics Analysis Project
 
-
-
-
+This repository contains the code and documentation for conducting proteomics and phosphoproteomics analyses in R, generating visualizations, and performing API queries to STRING in Python. The project focuses on analyzing proteomic and phosphoproteomic data from various experiments, aiming to identify patterns, variations, and correlations to better understand the biological effects of different experimental conditions.
 #############################################################################################
+Author
 
-
-
-
-Este repositorio contiene el código y la documentación para realizar análisis de proteómica y fosfoproteómica en R, generar visualizaciones y consultas API a string en Python. El proyecto se centra en el análisis de datos proteómicos y fosfoproteómicos obtenidos de diferentes experimentos, buscando identificar patrones, variaciones y correlaciones que permitan entender mejor los efectos biológicos de distintas condiciones experimentales.
+Contact: julia.verheul@ibima.eu
+This project was developed by Julia Verheul, a PhD student in the Neuropsychopharmacology group at IBIMA in Málaga.
 #############################################################################################
-Autoría
+Project Description
 
-Este proyecto ha sido realizado por Julia Verheul, estudiante de doctorado del grupo de Neuropsicofarmacología del IBIMA en Málaga.
+The project includes two main analyses:
 
+    Alcohol Effect: Analysis of the impact of alcohol consumption on male rats, focusing on proteomic changes in the hippocampus.
+    Alcohol Effect and Acute Immobilization Stress: A combined analysis to study the effect of alcohol exposure along with acute immobilization stress in male rats, focusing on alterations in the hippocampus.
 #############################################################################################
+Repository Structure
 
-Descripción del Proyecto
-
-El proyecto incluye dos análisis principales:
-
-    Efecto del alcohol: Análisis del impacto del consumo de alcohol en ratas machos, centrado en cambios proteómicos en el hipocampo.
-    Efecto del alcohol y Estrés Agudo por Inmovilización: Análisis combinado para estudiar el efecto de la exposición al alcohol junto con el estrés agudo por inmovilización en ratas machos, enfocándose en las alteraciones en el hipocampo.
-
-
+    data/: Folder containing processed data files and/or intermediate results. Both proteomics and phosphoproteomics data in this folder are normalized and ready for analysis.
+    scripts/: Contains R scripts for the main analyses, including statistical analysis and heatmap generation.
+    python/: Contains Python scripts for API queries, including interactions with the STRING database to retrieve additional data on proteins of interest.
+    results/: Folder for storing final results and generated graphics, including specific results for phosphoproteomics.
 #############################################################################################
+Requirements
 
-Estructura del Repositorio
+This project uses R and Python for data analysis, as well as the SEAOP software. Be sure to install the following packages and software before running the scripts:
 
-    data/: Carpeta que contiene los archivos de datos procesados y/o los resultados intermedios. Los datos en esta carpeta, tanto de proteómica como de fosfoproteómica, ya están normalizados y listos para su análisis.
-    scripts/: Contiene los scripts en R para realizar los análisis principales, como el análisis estadístico y la generación de heatmaps.
-    python/: Contiene scripts en Python para realizar consultas API, incluyendo interacciones con la base de datos STRING para la obtención de datos adicionales sobre las proteínas de interés.
-    results/: Carpeta para almacenar los resultados finales y gráficos generados, incluyendo los resultados específicos de la fosfoproteómica.
-
-
-#############################################################################################
-
-Requisitos
-
-Este proyecto utiliza R y Python para el análisis de datos, además del software SEAOP. Asegúrate de instalar los siguientes paquetes y software antes de ejecutar los scripts:
-
-
-Instalación de Paquetes en R
+R Package Installation
 
 install.packages(c("effsize", "readxl", "data.table", "dplyr", "xlsx", "openxlsx", "igraph", 
                    "ggraph", "ggplot2", "ggrepel", "pheatmap", "RColorBrewer", 
                    "FactoMineR", "factoextra", "edgeR"))
 
-#############################################################################################
-Instalación de SEAOP
+SEAOP Installation
 
-Para el análisis estadístico y la detección de outliers, este proyecto requiere el uso de SEAOP. Asegúrate de seguir las instrucciones de instalación en su repositorio para configurarlo adecuadamente antes de ejecutar los análisis.
+For statistical analysis and outlier detection, this project requires SEAOP. Make sure to follow the installation instructions in its repository to configure it properly before running the analyses.
 https://academic.oup.com/bib/article/25/3/bbae129/7638267?login=true
-https://github.com/whisperH/SEAOP
+https://github.com/whisperH/SEAOP)
 
-#############################################################################################
-Ejecución
+Execution
 
-    Preparación de los Datos: Coloca tus datos en la carpeta data/.
-    Análisis en R: Utiliza los scripts en la carpeta scripts/ para realizar el análisis principal, como el análisis estadístico, filtrado y generación de heatmaps.
-    Consultas API en Python: Ejecuta los scripts en la carpeta python/ para realizar consultas a la base de datos STRING y obtener datos adicionales sobre las proteínas de interés.
-    Interpretación de Resultados: Los resultados generados se guardan en la carpeta results/ para su interpretación.
+    Data Preparation: Place your data in the data/ folder.
+    Analysis in R: Use the scripts in the scripts/ folder to perform the main analysis, including statistical analysis, filtering, and heatmap generation.
+    API Queries in Python: Run the scripts in the python/ folder to perform STRING database queries and obtain additional data on proteins of interest.
+    Interpretation of Results: Generated results are saved in the results/ folder for interpretation.
 
-
-
-
-
-
-
-#############################################################################################
-
-
-
-
-
-       ____()()
-      /      @@
-`~~~~~\_;m__m._>o   
