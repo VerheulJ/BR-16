@@ -1,0 +1,74 @@
+# Archivo con los parámetros que se han seleccionado en R
+# =============================== M1: environment config =======================#
+logs_dir: './Result/my_experiment'       # results
+data_dir: './datasets/Format'
+infer_log_dir: './Result/my_experiment/Infer/'
+infer_datafile: ""                    # initialize: get value in commend line via infer_datafile XXXX.csv
+prepare_data_dir: ""                  # initialize: get value in DetectOutlier/utils/data.py
+simulated_data_dir: ""                # initialize: get value in DetectOutlier/utils/data.py
+#logs_dir: 'E:\\code\\PeptideOD\\Result\\Hela_int_all'
+#data_dir: 'E:\\code\\PeptideOD\\datasets\\Raw'
+
+Linux_R_USER: '/home/anaconda3/envs/ppOD/lib/python3.7/site-packages/rpy2'
+
+dataset_list_raw: ['tabla.csv']
+
+# =============================== M2: data config =======================#
+data_prepare: true                     # rescale and re-split tranin/test dataset
+seed_nums: 5                           # the seed number which generates sub-dataset
+use_cross_valid: false                 # if use_cross_valid, seed nums==5 is 5-fold validation, otherwise random sample "seed_nums" subsets
+
+##### configuration of rescale and resplit data #####
+sample_ratio: 0.85                     # the ratio of samples are used as train data
+scale_strategy: "log2_qnorm" # std, minmax, "no", qnorm, log2
+fill_strategy: global_min # global_min
+
+##### not used: whether combined with other data, only support original
+generate_duplicates: true
+joint_data: 'original'
+input_matrix: feature_matrix # feature_matrix
+##### not used: used for generating feature correlation matrix with high-dimensional data
+dist_type: l2 # l2, l1, Mahalanobis, Manhattan, Cosine, Spearman
+
+# =============================== M3: model config =======================#
+models:
+  - LOF:
+      - n_neighbors: [2, 3, 4]  # Ajustado a máximo 9 vecinos
+      - contamination: [0.02]
+
+  - KNN:
+      - n_neighbors: [2, 3, 4]
+      - method: ['largest', 'mean']
+      - metric: ['l2', 'euclidean']
+      - contamination: [0.02]
+
+
+# =============================== M4: simulated config =======================#
+external_outlier_candidates:
+  - Grub: []
+  - Biomolecules:  []
+fake_repeats: 20        # totally repeat times: 100, for each group repeat fake_repeats/fake_groups
+fake_groups: 2          # each group is repeat 10, fake_num of 1 group with 1 repeat = clean_data.shape[0] // (fake_repeats/fake_group)
+feature_shuffle_ratio: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0] # selected feature ratio to shuffle
+accept_acc: 0.9
+offset: 1
+# =============================== M5: run config =======================#
+multiple_thread: true
+save_model: true
+visualize_stat: true
+
+# for train SEAOP
+runSingleOD: true # step 1: train all single model. if false, load candidate pool from args.external_outlier_candidates
+runFakeData: true # step 2: (see M4) generate simulated data via feature shuffle with different threshold
+runSingleInfer: true # Step 3: test single model on fake data
+runFakeStat: true # Step 4: run model on the fake data
+runModelSelect: true # Step 4: run model on the fake data
+
+
+# for test SEAOP
+runInferSingle: false
+runBoostTest: false
+
+# for test SEAOP on Fake data
+validateFakeData: false
+validateModelonFake: "model_selected" #model_selected, model_dropped
