@@ -48,3 +48,9 @@ Execution
     API Queries in Python: Run the scripts in the python/ folder to perform STRING database queries and obtain additional data on proteins of interest.
     Interpretation of Results: Generated results are saved in the results/ folder for interpretation.
 
+
+
+
+()-()   
+ \"/  
+  `
