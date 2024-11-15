@@ -1,0 +1,125 @@
+
+
+# Leer archivos
+entera_experimento <- read_excel("data/entera_fosfo.xlsx")
+ajustado <- as.data.frame(read_xlsx("data/ajustado_FOSFO.xlsx"))
+sample_metadata <- as.data.frame(read_csv("data/sample-metadata.csv"))
+alcohol <- read_xlsx("data/ajustado_efecto_alcohol_BR16_machos.xlsx")
+alcohol_stress <- read_xlsx("data/estadistica_entera_experimento_BR16_machos.xlsx")
+
+# Seleccionar columnas y generar índice de proteínas
+accesion_experimento <- dplyr::select(entera_experimento, Accession)
+gene_ID_experimento <- dplyr::select(entera_experimento, "Gene Symbol")
+indice_proteina <- cbind(accesion_experimento, gene_ID_experimento)
+
+# Configurar el dataframe ajustado
+rownames(ajustado) <- ajustado$...1
+ajustado <- ajustado[,-1]
+
+# Preparar metadata de muestra y definir nombres de filas
+nombres <- sample_metadata[, 1]
+rownames(sample_metadata) <- nombres
+
+# Filtrar proteínas desreguladas y crear la matriz seleccionada
+desreguladas <- alcohol$Accession
+matriz_elegidas <- ajustado[desreguladas, nombres]
+desreguladas_nombres <- indice_proteina[match(rownames(matriz_elegidas), indice_proteina$Accession),]
+rownames(matriz_elegidas) <- desreguladas_nombres$`Gene Symbol`
+logmatriz_elegidas <- as.data.frame(t(apply(matriz_elegidas, 1, log10)))
+
+# Filtrar columnas en alcohol y alcohol_stress
+a <- c(5,6,7)
+alcohol_stress <- alcohol_stress[,-a]
+alcohol <- alcohol[,-a]
+
+# Seleccionar accesiones comunes y extraer columnas de interés
+select <- as_vector(alcohol[,1])
+alcohol_stress_select <- alcohol_stress[alcohol_stress$Accession %in% select, ]
+columnas <- alcohol_stress_select[, 4:5]
+colnames(columnas) <- c("log10pvalor_alcohol_stress", "tabla_alcohol_stress_datos.media")
+
+# Combinar datos y reorganizar columnas
+todo <- cbind(alcohol[,1:5], columnas, alcohol[,6:8])
+todo <- todo[, c(1:4, 6, 5, 7:ncol(todo))]
+
+# Crear el heatmap de datos seleccionados
+c <- c(2,6,7,8)
+todo_heatmap <- todo[,c]
+rownames(todo_heatmap) <- todo_heatmap$Gene.Symbol
+todo_heatmap <- todo_heatmap[, -1]
+colnames(todo_heatmap) <- c("control", "alcohol", "alcohol+stress")
+todo_heatmap <- todo_heatmap[, c(3,1,2)]
+
+
+# Definir la ruta donde se guardarán los archivos
+ruta_guardado <- "data/Metodo2/"
+
+# Definir los nombres de archivos y dispositivos gráficos correspondientes
+formatos <- list(
+  tiff = list(extension = ".tif", device = tiff, width = 7.5, height = 7.5, units = "in", res = 600),
+  svg = list(extension = ".svg", device = svg, width = 7.5, height = 7.5),
+  pdf = list(extension = ".pdf", device = pdf, width = 7.5, height = 7.5)
+)
+
+
+p_alcoholstress<-alcohol_stress_select$log10pvalor_alcohol
+p_alcohol<-alcohol$log10pvalor_alcohol
+
+
+p_values <- data.frame(Alcohol = p_alcohol, AlcoholStress = p_alcoholstress)  # Valores de ejemplo
+
+heatmap_data_with_pval <- cbind(logmatriz_elegidas, Alcohol = p_values$Alcohol, Alcohol_Stress = p_values$AlcoholStress)
+
+
+# Asignar las anotaciones desde sample_metadata
+grupo_experimental <- sample_metadata[ , "Treatment", drop=FALSE]
+rownames(grupo_experimental) <- sample_metadata$`sample-id`  # Asegurar que las filas tengan los mismos nombres que en heatmap_data_with_pval
+
+# Crear un dataframe con los nombres de las proteínas y los p-valores
+annotation_row <- data.frame(Alcohol = heatmap_data_with_pval[, "Alcohol"],
+                             Alcohol_Stress = heatmap_data_with_pval[, "Alcohol_Stress"])
+
+# Modificar p-valores: los menores de 1.3 serán NA
+annotation_row$Alcohol[annotation_row$Alcohol < 1.3] <- NA
+annotation_row$Alcohol_Stress[annotation_row$Alcohol_Stress < 1.3] <- NA
+
+# Asegurar que los nombres de las filas en el heatmap coincidan con las anotaciones
+rownames(annotation_row) <- rownames(heatmap_data_with_pval)
+
+# Paleta de colores para los grupos experimentales
+colors_annotation <- list(
+  Treatment = c("control" = "green", "EtOH" = "red", "EtOH+stress" = "blue"),
+  Alcohol = colorRampPalette(c("yellow", "red"))(50),
+  Alcohol_Stress = colorRampPalette(c("yellow", "red"))(50)
+)
+custom_colors <- colorRampPalette(c("blue", "white", "red"))(100)
+
+# Ajustar el espacio para las anotaciones
+tu_grafico <- pheatmap(
+  heatmap_data_with_pval[ , -c(ncol(heatmap_data_with_pval)-1, ncol(heatmap_data_with_pval))],
+  annotation_row = annotation_row,
+  annotation_col = grupo_experimental,
+  show_rownames = TRUE,
+  show_colnames = TRUE,
+  scale = "row",
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+  annotation_colors = colors_annotation,
+  color = custom_colors,
+  display_numbers = FALSE
+)
+
+
+# Guardar el gráfico Volcano en los formatos deseados
+for (formato in names(formatos)) {
+  detalles <- formatos[[formato]]
+  nombre_archivo <- paste0(ruta_guardado, "HEATMAP_ALCOHOLSTRESS_fosfo", detalles$extension)
+  if (formato == "tiff") {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height, 
+                    units = detalles$units, res = detalles$res)
+  } else {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height)
+  }
+  print(tu_grafico)
+  dev.off()
+}
