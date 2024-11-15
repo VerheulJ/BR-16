@@ -236,10 +236,10 @@ down_regulated$Status<-"down-regulated"
 
 
 df_desreguladas<-rbind(down_regulated, up_regulated)
-write.xlsx(df_desreguladas, "data/Metodo2/alcohol/35/efecto_alcohol_BR16_machos.xlsx", sheetName = "Desreguladas")
-write.xlsx(vulcanot, "data/Metodo2/alcohol/35/estadistica_entera_experimento_BR16_machos.xlsx", sheetName = "todas")
+write.xlsx(df_desreguladas, "data/efecto_alcohol_BR16_machos.xlsx", sheetName = "Desreguladas")
+write.xlsx(vulcanot, "data/estadistica_entera_experimento_BR16_machos.xlsx", sheetName = "todas")
 # Definir la ruta donde se guardarán los archivos
-ruta_guardado <- "data/Metodo2/alcohol/35/"
+ruta_guardado <- "data/"
 
 # Definir los nombres de archivos y dispositivos gráficos correspondientes
 formatos <- list(
@@ -322,7 +322,7 @@ cat(lista_red)
 
 
 
-br_16_alcohol <- read_excel("data/Metodo2/alcohol/35/RED_ALCOHOL.xlsx")
+br_16_alcohol <- read_excel("data/RED_ALCOHOL.xlsx")
 
 
 
@@ -447,7 +447,7 @@ library(ggraph)
 library(ggplot2)
 
 # Definir la ruta donde se guardarán los archivos
-ruta_guardado <- "data/Metodo2/alcohol/35/"
+ruta_guardado <- "data/"
 
 # Definir los nombres de archivos y dispositivos gráficos correspondientes
 formatos <- list(
@@ -699,7 +699,7 @@ data_range <- range(matriz_elegidas, na.rm = TRUE)
 breaks <- seq(data_range[1], data_range[2], length.out = 101)
 
 # Definir la ruta de guardado y los formatos
-ruta_guardado <- "data/Metodo2/alcohol/35/"
+ruta_guardado <- "data/"
 
 # Definir los nombres de archivos y dispositivos gráficos correspondientes
 formatos <- list(
@@ -749,7 +749,7 @@ for (formato in names(formatos)) {
 
 
 
-Enrichment_Results <- read_excel("data/Metodo2/alcohol/35/Enrichment_Results.xlsx")
+Enrichment_Results <- read_excel("data/Enrichment_Results.xlsx")
 
 termGO <- Enrichment_Results %>%
   filter(category %in% c("Component"))
@@ -805,7 +805,7 @@ ruta_archivo_png_go <- paste0(ruta_guardado, "enrichGO.png")
 ggsave(filename = ruta_archivo_png_go, plot = g_go, device = "png", width = 10, height = 10)
 
 # Definir la ruta donde se guardarán los archivos
-ruta_guardado <- "data/Metodo2/alcohol/35/"
+ruta_guardado <- "data/"
 
 # Definir los nombres de archivos y dispositivos gráficos correspondientes
 formatos <- list(
@@ -1084,8 +1084,8 @@ down_regulated$Status<-"down-regulated"
 
 
 df_desreguladas<-rbind(down_regulated, up_regulated)
-write.xlsx(df_desreguladas, "data/Metodo2/alcohol/35/ajustado_efecto_alcohol_BR16_machos.xlsx", sheetName = "Desreguladas")
-write.xlsx(vulcanot, "data/Metodo2/alcohol/35/ajustado_estadistica_entera_experimento_BR16_machos.xlsx", sheetName = "todas")
+write.xlsx(df_desreguladas, "data/ajustado_efecto_alcohol_BR16_machos.xlsx", sheetName = "Desreguladas")
+write.xlsx(vulcanot, "data/ajustado_estadistica_entera_experimento_BR16_machos.xlsx", sheetName = "todas")
 
 
 
@@ -1185,7 +1185,7 @@ proteinas_interes <- intersect(df_desreguladas$Gene.Symbol, top_contrib_vars)
 # no_principales_significativas <- setdiff(df_desreguladas$Gene.Symbo, top_contrib_vars)
 
 # Definir la ruta donde se guardarán los archivos
-ruta_guardado <- "data/Metodo2/alcohol/35/"
+ruta_guardado <- "data/"
 
 # Definir los nombres de archivos y dispositivos gráficos correspondientes
 formatos <- list(
@@ -1240,5 +1240,3 @@ for (formato in names(formatos)) {
   print(biplot)
   dev.off()
 }
-
-
