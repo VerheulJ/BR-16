@@ -1,4 +1,4 @@
-# Archivo con los parámetros que se han seleccionado en R
+# Archivo con los parámetros que se han seleccionado en SEAOP
 # =============================== M1: environment config =======================#
 logs_dir: './Result/my_experiment'       # results
 data_dir: './datasets/Format'
