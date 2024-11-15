@@ -1,36 +1,24 @@
-
-library(effsize)
-library(readxl)
+# Librerías necesarias para el análisis
+library(effsize)      
+library(readxl)     
 library(data.table)
-#library(ggpubr)
-library(readr)
-library(stats)
-library(formattable)
-library(dplyr)
-library(car)
-library(xlsx)
-library(openxlsx)
-options(scipen = 999)
-library(tm)
-library(tidytext)
-library(tidyverse)
-library(edgeR)  # Procesar datos de conteos para NGS
-library(gplots)
-library(readr)
-library(ggraph)
-library(igraph)
-library(ggplot2)
-library(ggrepel)
-library(pheatmap)
-library(RColorBrewer)
-library(factoextra)
-library("FactoMineR")
-library("factoextra")
-library(missMDA)
+library(dplyr)       
+library(xlsx)         
+library(openxlsx)     
+library(igraph)      
+library(ggraph)       # Visualización de redes
+library(ggplot2)      # Gráficos
+library(ggrepel)      # Etiquetas en gráficos
+library(pheatmap)     # Heatmap
+library(RColorBrewer) # Paleta de colores
+library(FactoMineR)   # Análisis de componentes principales (PCA)
+library(factoextra)   # Visualización de PCA
+library(edgeR)        # Procesamiento de datos de conteo para NGS
 
-entera_experimento <- read_excel("alcohol/tercera-vuelta/definitivo/BR-16/BR-16_Proteomica/entera.xlsx")
-sample_metadata<- read_xlsx("alcohol/tercera-vuelta/definitivo/BR-16/BR-16_Proteomica/sample-metadata-alcohol-stress.xlsx")
-ajustado<-read_xlsx("alcohol/tercera-vuelta/definitivo/BR-16/BR-16_Proteomica/ajustado.xlsx")
+
+entera_experimento <- read_excel("data/entera.xlsx")
+sample_metadata<- read_xlsx("data/sample-metadata-alcohol-stress.xlsx")
+ajustado<-read_xlsx("data/ajustado.xlsx")
 
 
 
