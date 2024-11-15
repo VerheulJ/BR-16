@@ -5,9 +5,7 @@ Proyecto de Análisis de Proteómica y fosfoproteómica
 
 #############################################################################################
 
-#    ____()()
-#      /      @@
-#`~~~~~\_;m__m._>o   
+
 
 
 Este repositorio contiene el código y la documentación para realizar análisis de proteómica y fosfoproteómica en R, generar visualizaciones y consultas API a string en Python. El proyecto se centra en el análisis de datos proteómicos y fosfoproteómicos obtenidos de diferentes experimentos, buscando identificar patrones, variaciones y correlaciones que permitan entender mejor los efectos biológicos de distintas condiciones experimentales.
@@ -63,3 +61,9 @@ Ejecución
     Análisis en R: Utiliza los scripts en la carpeta scripts/ para realizar el análisis principal, como el análisis estadístico, filtrado y generación de heatmaps.
     Consultas API en Python: Ejecuta los scripts en la carpeta python/ para realizar consultas a la base de datos STRING y obtener datos adicionales sobre las proteínas de interés.
     Interpretación de Resultados: Los resultados generados se guardan en la carpeta results/ para su interpretación.
+
+
+
+       ____()()
+      /      @@
+`~~~~~\_;m__m._>o   
