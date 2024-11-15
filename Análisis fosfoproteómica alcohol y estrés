@@ -1,0 +1,1306 @@
+library(effsize)
+library(readxl)
+library(data.table)
+library(dplyr)
+library(xlsx)
+library(openxlsx)
+library(igraph)
+library(ggraph)
+library(ggplot2)
+library(ggrepel)
+library(pheatmap)
+library(RColorBrewer)
+library(FactoMineR)
+library(factoextra)
+library(edgeR)
+
+
+
+entera_experimento <- read_excel("data/entera_fosfo.xlsx")
+sample_metadata<- read_xlsx("data/sample-metadata-alcohol-stress.xlsx")
+ajustado<-read_xlsx("data/ajustado_FOSFO.xlsx")
+
+
+
+accesion_experimento<-dplyr::select(entera_experimento, Accession)
+gene_ID_experimento<-dplyr::select(entera_experimento, "Gene Symbol")
+indice_proteina<-cbind(accesion_experimento,gene_ID_experimento)
+# colnam<-colnames(entera_stress)
+# # indices <- grep("Normalized)", accession_to_gene = dict(zip(inide_proteina['Accession'], inide_proteina['Gene.Symbol']))colnam)
+# indices <- grep("Abundance: ", colnam)
+#
+# abundancias_experimento<-df_experimento[, indices]
+id<-indice_proteina[,1]
+
+ajustado<-as.data.frame(ajustado)
+rownames(ajustado)<-id
+
+
+
+
+prot_control<- sample_metadata %>% 
+  filter(Treatment == "Vehicle") %>% 
+  pull("sample-id")
+
+
+prot_alcohol_stress<- sample_metadata %>% 
+  filter(Treatment == "EtOH.stress") %>% 
+  pull("sample-id")
+
+
+
+tabla_control<- ajustado %>%
+  select(all_of(prot_control))
+
+tabla_alcohol_stress<- ajustado %>%
+  select(all_of(prot_alcohol_stress))
+rownames(ajustado)<-id
+rownames(tabla_control)<-id
+rownames(tabla_alcohol_stress)<-id
+
+
+
+tabla_alcohol_stress_datos<-tabla_alcohol_stress
+tabla_alcohol_stress_datos$media<- rowSums(tabla_alcohol_stress, na.rm = TRUE) / ncol(tabla_alcohol_stress)
+
+tabla_control_datos<-tabla_control
+tabla_control_datos$media<- rowSums(tabla_control,na.rm = TRUE) / ncol(tabla_control)
+
+nprot<-nrow(tabla_alcohol_stress) 
+
+
+p_alcohol_test <- c()
+normalidad_alcohol <- c()
+normalidad_control <- c()
+
+# Realizar el test y comprobación de normalidad para cada proteína
+for (n in 1:nprot) {
+  c_alcohol_stress <- as.numeric(tabla_alcohol_stress[n, ])
+  c_abstemio_relax <- as.numeric(tabla_control[n, ])
+  
+  # Comprobar normalidad para el grupo "alcohol"
+  if (length(unique(c_alcohol_stress)) == 1) {
+    p_valor_alcohol <- 1
+  } else {
+    p_valor_alcohol <- shapiro.test(c_alcohol_stress)$p.value
+  }
+  normalidad_alcohol <- c(normalidad_alcohol, p_valor_alcohol)
+  
+  # Comprobar normalidad para el grupo control
+  if (length(unique(c_abstemio_relax)) == 1) {
+    p_valor_control <- 1
+  } else {
+    p_valor_control <- shapiro.test(c_abstemio_relax)$p.value
+  }
+  normalidad_control <- c(normalidad_control, p_valor_control)
+  
+  # Verificar si los valores de ambos grupos son idénticos
+  if (all(c_alcohol_stress == c_abstemio_relax)) {
+    p_valor <- 1
+  } else {
+    # Elegir el test estadístico en función de la normalidad de ambos grupos
+    if (p_valor_alcohol > 0.05 && p_valor_control > 0.05) {
+      # Ambos grupos son normales, realizar t-test
+      resultado_alcohol <- t.test(c_alcohol_stress, c_abstemio_relax, var.equal = FALSE)
+    } else {
+      # Al menos uno de los grupos no es normal, realizar Wilcoxon test
+      resultado_alcohol <- wilcox.test(c_alcohol_stress, c_abstemio_relax)
+    }
+    
+    # Almacenar el p-value
+    p_valor <- resultado_alcohol$p.value
+  }
+  
+  # Almacenar el p-value
+  p_alcohol_test <- c(p_alcohol_test, p_valor)
+}
+gene_symbols <- indice_proteina$`Gene Symbol`[match(rownames(tabla_alcohol_stress), indice_proteina$Accession)]
+
+# Crear un data frame con los resultados
+result_alcohol <- data.frame(
+  Protein = rownames(tabla_alcohol_stress), 
+  Gene = gene_symbols,
+  P_Value = p_alcohol_test, 
+  tabla_control_datos$media,
+  tabla_alcohol_stress_datos$media,
+  normalidad_alcohol = normalidad_alcohol,
+  normalidad_control = normalidad_control
+)
+# Filtrar las de proteínas significativas
+significativa_alcohol <- result_alcohol %>% filter(P_Value < 0.05)
+
+
+
+
+
+cociente_alcohol<-tabla_alcohol_stress_datos$media / tabla_control_datos$media
+cociente_alcohol<-data.frame(cociente_alcohol)
+log2cociente_alcohol<-apply(cociente_alcohol, 1, log2)
+log2cociente_alcohol<-data_frame(log2cociente_alcohol)
+
+p_valor_alcohol<-result_alcohol$P_Value
+p_valor_alcohol<-data.frame(p_valor_alcohol)
+
+p_valor_alcohol<-data.frame(p_valor_alcohol)
+log10pvalor_alcohol<-apply(p_valor_alcohol, 1, log10)
+log10pvalor_alcohol<-data.frame(log10pvalor_alcohol)
+log10pvalor_alcohol<-apply(log10pvalor_alcohol, 1, function(x) -x)
+log10pvalor_alcohol<-data.frame(log10pvalor_alcohol)
+
+descriptions_selected <- entera_experimento$Description[match(result_alcohol$Protein, entera_experimento$Accession)]
+vulcanot<-data.frame(Accession = result_alcohol$Protein,
+                     Gene.Symbol = gene_symbols,
+                     log2cociente_alcohol, 
+                     log10pvalor_alcohol, 
+                     Normality_alcohol= normalidad_alcohol,
+                     Normality_control = normalidad_control, 
+                     tabla_alcohol_stress_datos$media, 
+                     tabla_control_datos$media,
+                     Description = descriptions_selected)
+rata_control<-ncol(tabla_control)
+rata_alcohol<-ncol(tabla_alcohol_stress)
+p_valor<-1.30103
+# LFC<-0.58
+LFCP<-0.44
+LFCN<-(-0.62)
+
+a<-  rata_control + rata_alcohol
+ref <- 3
+vulcanot_etiquetas<- vulcanot %>% filter(log2cociente_alcohol < LFCN | log2cociente_alcohol > LFCP)
+vulcanot_etiquetas<- vulcanot_etiquetas %>% filter(log10pvalor_alcohol>p_valor)
+
+
+
+# mas altos sobrexpresados
+
+
+tops<- vulcanot_etiquetas %>% filter(log2cociente_alcohol>LFCP)
+tops <- tops %>% arrange(desc(log10pvalor_alcohol)) %>%  # Ordenar el DataFrame por 'log10pvalor_alcohol' en orden descendente
+  head(3)                         # Seleccionar las primeras tres filas
+
+top_rows<-tops
+
+
+# Obtener los valores de la columna 'Accesion' de las tres filas
+sobreexpresadas_evidentes_accesion <- top_rows$Accession
+
+# mas altos subrexpresados
+
+
+high_negative_rows <- vulcanot_etiquetas %>%
+  filter(log2cociente_alcohol < LFCN) %>%   # Filtrar filas con 'log2cociente_alcohol' negativo
+  arrange(desc(log10pvalor_alcohol)) %>%  # Ordenar el DataFrame resultante por 'log10pvalor_alcohol' en orden descendente
+  head(3)                         # Seleccionar lasrownames(abundancias) <- id
+
+
+# Obtener los valores de la columna 'Accesion' de las tres filas
+subrrepresentadas_evidentes_accesion <- high_negative_rows$Accession
+
+vulcanot_etiquetas_evidente<- vulcanot_etiquetas  %>% filter(log10pvalor_alcohol>p_valor)
+
+far_rows <- vulcanot_etiquetas_evidente %>%
+  arrange(desc(log2cociente_alcohol)) %>%  # Ordenar el DataFrame por 'log10pvalor_alcohol' en orden descendente
+  head(3)                         # Seleccionar las primeras tres filas
+
+# Obtener los valores de la columna 'Accesion' de las tres filas
+mas_sobreexpresadas_accesion <- far_rows$Accession
+
+
+
+# Obtener los tres valores máximos de 'log10pvalor_alcohol' para filas con 'log2cociente_alcohol' negativo
+far_negative_rows <- vulcanot_etiquetas %>%
+  filter(log2cociente_alcohol < LFCN & log10pvalor_alcohol > p_valor) %>%   # Filtrar filas con 'log2cociente_alcohol' negativo
+  arrange(log2cociente_alcohol) %>%  # Ordenar el DataFrame resultante por 'log10pvalor_alcohol' en orden descendente
+  head(3)                         # Seleccionar las primeras tres filas
+
+mas_subrrepresentadas_accesion <- far_negative_rows$Accession
+
+accession_values <- c(mas_sobreexpresadas_accesion, mas_subrrepresentadas_accesion, 
+                      subrrepresentadas_evidentes_accesion, sobreexpresadas_evidentes_accesion)
+accession_values <- data.frame("Accession" = accession_values)
+subset_Desreguladas<- subset(vulcanot, Accession %in% accession_values$Accession)
+
+########################################################################################################################
+########################################################################################################################
+#######################################################################################################################
+########################################################################################################################
+########################################################################################################################
+#######################################################################################################################
+############################################################ggsave(filename = ruta_archivo, plot = last_plot(), device = "png", width = 10, height = 10)
+############################################################
+########################################################################################################################
+#######################################################################################################################
+up_regulated<-filter(vulcanot, log2cociente_alcohol>LFCP & log10pvalor_alcohol>p_valor)
+down_regulated <- filter(vulcanot, log2cociente_alcohol < LFCN & log10pvalor_alcohol > p_valor )
+
+
+resto<-anti_join(vulcanot, up_regulated) %>% anti_join(down_regulated)
+up_regulated$Status<-"up-regulated"
+down_regulated$Status<-"down-regulated"
+
+
+
+df_desreguladas<-rbind(down_regulated, up_regulated)
+write.xlsx(df_desreguladas, "data/efecto_alcohol_stress_BR16_machos.xlsx", sheetName = "Desreguladas")
+write.xlsx(vulcanot, "data/estadistica_entera_experimento_BR16_machos.xlsx", sheetName = "todas")
+# Definir la ruta donde se guardarán los archivos
+ruta_guardado <- "data/"
+# Definir los nombres de archivos y dispositivos gráficos correspondientes
+formatos <- list(
+  tiff = list(extension = ".tif", device = tiff, width = 7.5, height = 7.5, units = "in", res = 600),
+  svg = list(extension = ".svg", device = svg, width = 7.5, height = 7.5),
+  pdf = list(extension = ".pdf", device = pdf, width = 7.5, height = 7.5)
+)
+
+# Calcular el número de puntos en tus datos
+numero_de_puntos <- sum(
+  nrow(up_regulated),
+  nrow(down_regulated),
+  nrow(resto)
+)
+tu_grafico <- ggplot() +
+  labs(
+    title = "",
+    x = bquote(log[2](Fold_Change)),
+    y = bquote(-log[10](pvalue)),
+    color = ""
+  ) +
+  scale_color_manual(values = c("up-regulated" = "red", "down-regulated" = "blue")) +
+  theme(panel.background = element_rect(fill = "white"),
+        axis.line = element_line(color = "black"),
+        axis.text = element_text(color = "black"),
+        axis.title = element_text(color = "black"),
+        # Ajuste del tamaño de la leyenda
+        legend.text = element_text(size = 10),  # Aquí ajustas el tamaño de la leyenda
+        legend.title = element_text(size = 12)  # También puedes ajustar el tamaño del título de la leyenda
+  ) +
+  coord_cartesian(xlim = c(-5, 5), ylim = c(0, 5)) +
+  geom_point(data = up_regulated, aes(x = log2cociente_alcohol, y = log10pvalor_alcohol, color = Status), size = 0.75) +
+  geom_point(data = down_regulated, aes(x = log2cociente_alcohol, y = log10pvalor_alcohol, color = Status), size = 0.75) +
+  geom_point(data = resto, aes(x = log2cociente_alcohol, y = log10pvalor_alcohol), color = "grey", size = 0.5) +
+  geom_vline(xintercept =LFCN, linetype = "dashed", color = "black") +
+  geom_vline(xintercept = LFCP, linetype = "dashed", color = "black") +
+  geom_hline(yintercept = p_valor, linetype = "dashed", color = "black") +
+  geom_label_repel(data = subset_Desreguladas,
+                   aes(x = log2cociente_alcohol, y = log10pvalor_alcohol, label = `Gene.Symbol`),
+                   color = "black", box.padding = 0.2, point.padding = 0.1,
+                   force = 10, nudge_x = 0.000000000000001, nudge_y = 0.0000000000001) +
+  geom_text(aes(x = -5, y = ref + 2.095, label = paste("p-value(0.05)= 1.30103")), size = 4, hjust = 0) +
+  geom_text(aes(x = -5, y = ref + 1.945, label = paste("N (proteins)=", numero_de_puntos)), size = 4, hjust = 0) +
+  geom_text(aes(x = -5, y = ref + 1.795, label = paste("N (rats)  =", a)), size = 4, hjust = 0) +
+  geom_text(aes(x = -5, y = ref + 1.645, label = paste("down-regulated =", nrow(down_regulated))), size = 4, hjust = 0) +
+  geom_text(aes(x = -5, y = ref + 1.495, label = paste("up-regulated =", nrow(up_regulated))), size = 4, hjust = 0) 
+
+
+# Guardar el gráfico Volcano en los formatos deseados
+for (formato in names(formatos)) {
+  detalles <- formatos[[formato]]
+  nombre_archivo <- paste0(ruta_guardado, "efecto_alcohol_stress_BR16_machos", detalles$extension)
+  
+  if (formato == "tiff") {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height, 
+                    units = detalles$units, res = detalles$res)
+  } else {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height)
+  }
+  print(tu_grafico)
+  dev.off()
+}
+
+# Guardar en PNG adicionalmente
+ruta_archivo_png <- paste0(ruta_guardado, "efecto_alcohol_stress_BR16_machos.png")
+ggsave(filename = ruta_archivo_png, plot = tu_grafico, device = "png", width = 7.5, height = 7.5)
+
+
+lista_red <- paste(df_desreguladas$Accession, collapse = ", ")
+
+lista_red <- strsplit(lista_red, ", ")[[1]]
+
+# Agregar comillas a cada elemento
+lista_red <- paste0('"', lista_red, '"')
+
+# Cadena formateada
+lista_red <- paste("[", paste(lista_red, collapse = ", "), "]", sep = "")
+lista_red <- gsub("-[0-9]+", "", lista_red)
+cat(lista_red)
+
+# ["B0BND0", "F1M7L9-2", "O88370", "P01830", "P13697", "P25286", "P32736", "P37996", "P48550", "P54290", "P63029", "P84903", "Q5U204", "Q62688", "Q62813", "Q62844", "Q68FP1", "Q6AXS4", "Q6VBQ5", "Q7TSU1", "Q8CFG5", "Q9ESQ7", "Q9R1T5", "P01946", "P02091", "P04218", "P0C0S7", "P11517", "P11762", "P12075", "P14562", "P14925", "P22791", "P24090", "P31647", "P47728", "P49655", "P83953", "P84087", "Q03344", "Q04940", "Q4KLG9", "Q4V898", "Q5PQX1", "Q5XFX0", "Q5XIE1", "Q5XIF3", "Q5XIG4", "Q64303", "Q6P9X4", "Q9JI12", "Q9QXU9"]
+
+
+br_16_alcohol <- read_excel("data/RED_ALCOHOL.xlsx")
+
+
+
+br_16_interacciones <- br_16_alcohol[, (3:4)]
+
+
+
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC102555453", "Rpl12")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Qk", "Qki")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LRRTM1", "Lrrtm1")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC100361558", "H3-3b")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC100360449", "Rpl9")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC100361756", "Rps26")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC103690091", "Pcsk1n")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC100363469", "Rps24")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Rpl36al", "Rpl36a")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Slc9a3r2", "Nherf2")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Serpina3c", "Serpina3k")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Car1", "Ca1")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Hmgb1-2", "Hmgb1")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "COX2", "Mtco2")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Srp54a", "Srp54")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Eif5b-2", "Eif5b")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "H1f5", "H1-5")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Cox6c", "Cox6c2")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Calm3", "Calm2")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC103693015", "Vkorc1l1")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Tuba3b", "Tuba3a; Tuba3b")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "ATP8", "Mt-atp8")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Rack1-2", "Rack1")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC100912380", "Capns1")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC679739", "Ndufs6")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC100911575", "Rplp2")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Hist1h2ah", "P_Histone_H2a_Type1e")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "H2ac1", "P_Histone_H2a_Type4")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Hist2h2aa2", "H2ac18")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Hbb-b1", "P_Hemoglobin_Subunit_Beta-2")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Timm8a1", "Timm8a")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "ND5", "Mtnd5")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Atp5md", "Atp5mk")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC100911110", "Eif3h")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Atad3a", "Atad3")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Rps21-2", "Rps21")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC100360117", "Rpl8")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "LOC100359951", "Rps20")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Rpl7a-2", "Rpl7a")
+
+br_16_interacciones <- replace(br_16_interacciones, br_16_interacciones == "Rpl7a-2", "Serpina3l")
+
+
+# # Plot ----
+# g <- graph_from_data_frame(br_16_interacciones, directed = FALSE) %>% simplify
+# plot.igraph(g, vertex.label.dist = 3.5, layout = layout_nicely, edge.arrow.size = 0.5)
+
+nodos <- unique(br_16_interacciones[, 1])
+
+
+proteinas_all <-
+  tibble(
+    Gene.Symbol = df_desreguladas$Gene.Symbol,
+    P_Value = df_desreguladas$log10pvalor_alcohol,
+    Cociente = df_desreguladas$log2cociente_alcohol  ,
+  )
+
+
+# Get unique genes from both columns
+nodos <-
+  unique(c(
+    as.character(br_16_interacciones$preferredName_A),
+    as.character(br_16_interacciones$preferredName_B)
+  ))
+
+g <- graph_from_data_frame(d = br_16_interacciones,
+                           vertices = proteinas_all$Gene.Symbol,
+                           directed = FALSE)
+
+# Asignar datos a los nodos
+V(g)$cociente <- proteinas_all$Cociente
+V(g)$p_valor <- proteinas_all$P_Value
+
+# Es mejor representar de manera binaria la expresion de los genes
+categoria <- ifelse(V(g)$cociente > 0, "Sobreexpresado", "Subexpresado")
+V(g)$categoria <- categoria
+
+# Grafo ----
+library(igraph)
+library(ggraph)
+library(ggplot2)
+
+
+# Definir los nombres de archivos y dispositivos gráficos correspondientes
+formatos <- list(
+  tiff = list(extension = ".tif", device = tiff, width = 10, height = 10, units = "in", res = 600),
+  svg = list(extension = ".svg", device = svg, width = 10, height = 10),
+  pdf = list(extension = ".pdf", device = pdf, width = 10, height = 10)
+)
+
+# Crear el grafo de interacciones
+g <- graph_from_data_frame(d = br_16_interacciones, vertices = proteinas_all$Gene.Symbol, directed = FALSE)
+
+# Asignar datos a los nodos
+V(g)$cociente <- proteinas_all$Cociente
+V(g)$p_valor <- proteinas_all$P_Value
+
+# Definir la categoría de expresión
+V(g)$categoria <- ifelse(V(g)$cociente > 0, "Up-regulated", "Down-regulated")
+
+# Preparar el grafo con ggraph
+mi_paleta <- colorRampPalette(c("blue", "white", "red"))(n = 100)
+
+# Crear el gráfico de red usando ggraph con layout "nicely"
+g <- ggraph(g, layout = "nicely") +
+  geom_edge_link() +
+  geom_node_point(aes(size = p_valor, fill = cociente, shape = categoria), colour = "black") +
+  geom_node_text(aes(label = name), nudge_x = -0.3, nudge_y = 0.3, family = "sans") +  # Especificar la fuente "sans"
+  theme_graph(base_family = "sans") +  # Usar "sans" como base para todo el gráfico
+  scale_shape_manual(values = c(21, 22)) +
+  scale_fill_gradientn(colors = mi_paleta, limits = c(min(-5, 0), max(0, 5))) +  
+  scale_size(range = c(5, 12)) +  # Cambia el tamaño base de los nodos
+  labs(fill = "Fold-Change", shape = "", size = "FDR-adjusted p-value") +
+  ggtitle("Network of phosphoproteins deregulated by the effect of alcohol and stress") +  # Título del gráfico
+  theme(
+    plot.title = element_text(family = "sans", size = 16, face = "bold"),  # Aplicar la fuente al título
+    legend.text = element_text(size = 12),  # Cambiar tamaño del texto de la leyenda
+    legend.title = element_text(size = 14)  # Cambiar tamaño del título de la leyenda
+  )
+# Guardar el gráfico en los formatos deseados
+for (formato in names(formatos)) {
+  detalles <- formatos[[formato]]
+  nombre_archivo <- paste0(ruta_guardado, "RED_alcohol", detalles$extension)
+  
+  if (formato == "tiff") {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height, 
+                    units = detalles$units, res = detalles$res, family = "sans")  # Especificar la fuente para TIFF
+  } else {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height, family = "sans")  # Especificar la fuente para SVG y PDF
+  }
+  print(g)
+  dev.off()
+}
+
+# Guardar en PNG adicionalmente
+ruta_archivo_png <- paste0(ruta_guardado, "RED_alcohol.png")
+ggsave(filename = ruta_archivo_png, plot = g, device = "png", width = 10, height = 10)
+# 
+# 
+vertices_interacciones <- unique(c(br_16_interacciones$preferredName_A, br_16_interacciones$preferredName_B))
+
+# Obtener los nombres de vértices que faltan en proteinas_all$Gene.Symbol
+missing_vertices <- setdiff(vertices_interacciones, proteinas_all$Gene.Symbol)
+
+
+
+
+
+genes <- c(br_16_interacciones$preferredName_A, br_16_interacciones$preferredName_B)
+interacciones <- as.data.frame(table(genes))
+colnames(interacciones) <- c("Gene.Symbol", "Interacciones")  # Renombramos las columnas
+
+
+# Paso 2: Hacer un merge con el dataframe de descripciones 
+resultado <- merge(df_desreguladas, interacciones, by = "Gene.Symbol")
+
+# Paso 3: Convertir las columnas de interacciones a numéricas para poder ordenar correctamente
+resultado$Interacciones <- as.numeric(as.character(resultado$Interacciones))
+
+# Paso 4: Ordenar el dataframe por la columna 'Interacciones' de mayor a menor
+resultado <- resultado[order(-resultado$Interacciones), ]
+
+texto_final <- apply(resultado, 1, function(row) {
+  gene <- row["Gene.Symbol"]
+  descripcion <- row["Description"]  # Ajusta este nombre a la columna real de descripciones
+  interacciones <- row["Interacciones"]
+  paste0(gene, " (", descripcion, ") - ", interacciones, " interacciones")
+})
+
+# Paso 6: Mostrar el resultado
+cat(texto_final, sep = "\n")
+
+# Prkacb (cAMP-dependent protein kinase catalytic subunit beta) - 8 interacciones
+# Rhoa (Transforming protein RhoA) - 8 interacciones
+# Pkm (Isoform M2 of Pyruvate kinase PKM) - 7 interacciones
+# App (Amyloid-beta A4 protein) - 6 interacciones
+# Gnao1 (Guanine nucleotide-binding protein G(o) subunit alpha) - 5 interacciones
+# Nudt2 (Bis(5'-nucleosyl)-tetraphosphatase [asymmetrical]) - 4 interacciones
+# Arf5 (ADP-ribosylation factor 5) - 3 interacciones
+# Gnb4 (Guanine nucleotide-binding protein subunit beta-4) - 3 interacciones
+# H3-3b (Histone H3.3) - 3 interacciones
+# Kalrn (Kalirin) - 3 interacciones
+# Naxe (NAD(P)H-hydrate epimerase) - 3 interacciones
+# Rasgrf2 (Ras-specific guanine nucleotide-releasing factor 2) - 3 interacciones
+# Adcyap1r1 (Pituitary adenylate cyclase-activating polypeptide type I receptor) - 2 interacciones
+# Glo1 (Lactoylglutathione lyase) - 2 interacciones
+# Gnaz (Guanine nucleotide-binding protein G(z) subunit alpha) - 2 interacciones
+# Gucy1a2 (Guanylate cyclase soluble subunit alpha-2) - 2 interacciones
+# Hmgb1 (High mobility group protein B1) - 2 interacciones
+# Mbp (Isoform 5 of Myelin basic protein) - 2 interacciones
+# Pfn2 (Profilin-2) - 2 interacciones
+# Prdx3 (Thioredoxin-dependent peroxide reductase, mitochondrial) - 2 interacciones
+# Abcb8 (Mitochondrial potassium channel ATP-binding subunit) - 1 interacciones
+# Arf4 (ADP-ribosylation factor 4) - 1 interacciones
+# Arfip2 (Arfaptin-2) - 1 interacciones
+# Ccdc51 (Mitochondrial potassium channel) - 1 interacciones
+# Csnk2b (Casein kinase II subunit beta) - 1 interacciones
+# Cyb5r3 (NADH-cytochrome b5 reductase 3) - 1 interacciones
+# Dcps (m7GpppX diphosphatase) - 1 interacciones
+# Dgkq (Diacylglycerol kinase theta) - 1 interacciones
+# Edc4 (Enhancer of mRNA-decapping protein 4) - 1 interacciones
+# Entpd2 (Ectonucleoside triphosphate diphosphohydrolase 2) - 1 interacciones
+# Gls2 (Glutaminase liver isoform, mitochondrial) - 1 interacciones
+# Nudt21 (Cleavage and polyadenylation specificity factor subunit 5) - 1 interacciones
+# Prkar1b (cAMP-dependent protein kinase type I-beta regulatory subunit) - 1 interacciones
+# Rab4a (Ras-related protein Rab-4A) - 1 interacciones
+# Rpl12 (60S ribosomal protein L12) - 1 interacciones
+# Slc7a5 (Large neutral amino acids transporter small subunit 1) - 1 interacciones
+# Sncb (Beta-synuclein) - 1 interacciones
+# Tfam (Transcription factor A, mitochondrial) - 1 interacciones
+# Vps52 (Vacuolar protein sorting-associated protein 52 homolog) - 1 interacciones
+# Yes1 (Tyrosine-protein kinase Yes) - 1 interacciones
+
+
+
+nprot<-nrow(tabla_alcohol_stress)
+nratas<-ncol(tabla_alcohol_stress) 
+
+
+
+
+
+
+# sample_metadata <- read.
+
+
+tabla_control_relleno<- ajustado %>% 
+  select(all_of(prot_control))
+
+
+
+# Calcular la media de cada fila excluyendo los valores vacíos
+tabla_control_relleno$media <- rowMeans(tabla_control_relleno, na.rm = TRUE)
+
+# Reemplazar los valores vacíos en cada fila con la media calculada
+for (i in 1:nrow(tabla_control_relleno)) {
+  tabla_control_relleno[i, is.na(tabla_control_relleno[i, ])] <- tabla_control_relleno$media[i]
+}
+
+# Eliminar la columna de medias si no la necesitas
+tabla_control_relleno$media <- NULL
+
+
+
+
+tabla_alcohol_stress_relleno<- ajustado %>% 
+  select(all_of(prot_alcohol_stress))
+
+
+# Calcular la media de cada fila excluyendo los valores vacíos
+tabla_alcohol_stress_relleno$media <- rowMeans(tabla_alcohol_stress_relleno, na.rm = TRUE)
+
+# Reemplazar los valores vacíos en cada fila con la media calculada
+for (i in 1:nrow(tabla_alcohol_stress_relleno)) {
+  tabla_alcohol_stress_relleno[i, is.na(tabla_alcohol_stress_relleno[i, ])] <- tabla_alcohol_stress_relleno$media[i]
+}
+
+# Eliminar la columna de medias si no la necesitas
+tabla_alcohol_stress_relleno$media <- NULL
+
+
+
+
+
+
+abundancias_alcohol_relleno<-cbind(tabla_alcohol_stress_relleno, tabla_control_relleno)
+
+rownames(abundancias_alcohol_relleno)<-id
+
+suma<-colSums(ajustado, na.rm = TRUE)
+print(suma)
+max<-which.max(suma)
+figura<-barplot(suma, cex.names = 0.6, las = 2, xlab = "Muestras", ylab = "Expresión")
+title("Diagrama de barras del total de lecturas por muestras normalizado con HK1" )
+# abline(h=median(colSums(abundancias_alcohol_relleno)),col="blue")
+
+
+n<-(abundancias_alcohol_relleno)
+
+medias_gen<-colSums(abundancias_alcohol_relleno, na.rm = TRUE)
+
+cpm<-cpm(abundancias_alcohol_relleno)
+logcpm <- cpm(abundancias_alcohol_relleno, log=TRUE)
+plotDensities(logcpm, legend = "topright")
+
+log_abundancias_relleno<-apply(abundancias_alcohol_relleno, 1, log10)
+log_abundancias_relleno<-t(log_abundancias_relleno)
+
+boxplot(log_abundancias_relleno, xlab="", ylab="Recuento en Log10 de lecturas",las=2)
+abline(h=median(log_abundancias_relleno),col="blue")
+title("Boxplots de los log10 de las muestras control y alcohol")
+
+
+
+sample_metadata$Treatment <- factor(sample_metadata$Treatment, levels = c("EtOH.stress", "Vehicle"))
+# asociamos un color a cada tipo de muestra
+sample.color <- c("blue","red")[sample_metadata$Treatment]
+# usamos ese código de colores para pintar el MDSplot
+plotMDS(log_abundancias_relleno, col=sample.color)
+legend("bottomright", fill=c("blue", "red"), legend=levels(sample_metadata$Treatment))
+title("MDSplot con muestras coloreadas según estado")
+
+
+# seleccionadas<-names(sort(varianza, decreasing = TRUE))[1:50]
+desreguladas<-df_desreguladas$Accession
+
+matriz_elegidas<-log_abundancias_relleno[desreguladas,]
+desreguladas_nombres <- indice_proteina[match(rownames(matriz_elegidas), indice_proteina$Accession),]
+rownames(matriz_elegidas) <- desreguladas_nombres$`Gene Symbol`
+sample_metadata <- as.data.frame(sample_metadata)
+
+nombres <- sample_metadata[, 1]
+# sample_metadata<-sample_metadata[, -1]
+# Ahora, asignar los nombres de fila
+rownames(sample_metadata) <- nombres
+
+# # Ahora, plotear el heatmap
+# pheatmap(matriz_elegidas, annotation_col = sample_metadata)
+# 
+# 
+# # Define a custom color palette
+# custom_colors <- colorRampPalette(rev(brewer.pal(n = 8, name = "RdYlBu")))(100)
+
+# Definir una paleta de colores personalizada
+custom_colors <- colorRampPalette(c("blue", "white", "red"))(100)
+
+# Determinar el rango de los datos
+data_range <- range(matriz_elegidas, na.rm = TRUE)
+
+# Generar los cortes para la escala de colores
+breaks <- seq(data_range[1], data_range[2], length.out = 101)
+
+# Definir la ruta de guardado y los formatos
+
+# Definir los nombres de archivos y dispositivos gráficos correspondientes
+formatos <- list(
+  tiff = list(extension = ".tif", device = tiff, width = 11, height = 16, units = "in", res = 600),
+  svg = list(extension = ".svg", device = svg, width = 11, height = 16),
+  pdf = list(extension = ".pdf", device = pdf, width = 11, height = 16)
+)
+annotation_data <- sample_metadata[, "Treatment", drop = FALSE]
+
+# Crear el heatmap con las opciones definidas
+p <- pheatmap(
+  matriz_elegidas,
+  annotation_col = annotation_data,
+  color = custom_colors,
+  breaks = breaks,
+  border_color = NA,
+  show_rownames = TRUE,
+  show_colnames = TRUE,
+  fontsize_row = 6,
+  angle_col = 45,
+  fontsize_col = 20,
+  fontsize = 10,
+  clustering_distance_rows = "euclidean",
+  clustering_distance_cols = "euclidean",
+  clustering_method = "complete"
+)
+
+# Guardar el heatmap en los formatos deseados
+for (formato in names(formatos)) {
+  detalles <- formatos[[formato]]
+  nombre_archivo <- paste0(ruta_guardado, "heatmap_resultado", detalles$extension)
+  
+  if (formato == "tiff") {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height, 
+                    units = detalles$units, res = detalles$res)
+  } else {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height)
+  }
+  
+  print(p)
+  dev.off()
+}
+
+
+
+
+Enrichment_Results <- read_excel("data/Enrichment_Results.xlsx")
+
+termGO <- Enrichment_Results %>%
+  filter(category %in% c("Component"))
+
+# Limitar a las 20 principales categorías por grupo
+
+data <- termGO %>%
+  mutate(count = sapply(strsplit(as.character(preferred_names), ","), length))
+top_n_per_group <- data %>%
+  group_by(category) %>%
+  top_n(20, -fdr) %>%
+  ungroup()
+
+
+# Ajustar el nombre largo de los términos GO a un ancho de línea de 20 caracteres (o el que prefieras)
+top_n_per_group$description <- str_wrap(top_n_per_group$description, width = 35)
+
+g_go <- ggplot(top_n_per_group, aes(x = reorder(description, -fdr), y = count, fill = fdr)) +
+  geom_bar(stat = "identity", width = 0.6) +  # Ancho constante de las barras
+  coord_flip() +
+  scale_fill_gradient(low = "blue", high = "red") +
+  facet_wrap(~ category, scales = "free_y", ncol = 1, strip.position = "top") +
+  labs(title = "GO terms",
+       x = "",
+       y = "Count",
+       fill = "FDR value") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(size = 15),
+    axis.text.y = element_text(size = 13),
+    strip.text = element_text(size = 15, face = "bold"),
+    panel.spacing = unit(3, "lines"),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+
+# Guardar el gráfico de GO en los formatos deseados
+for (formato in names(formatos)) {
+  detalles <- formatos[[formato]]
+  nombre_archivo <- paste0(ruta_guardado, "enrichGO", detalles$extension)
+  
+  if (formato == "tiff") {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height, 
+                    units = detalles$units, res = detalles$res)
+  } else {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height)
+  }
+  print(g_go)
+  dev.off()
+}
+
+# Guardar en PNG adicionalmente
+ruta_archivo_png_go <- paste0(ruta_guardado, "enrichGO.png")
+ggsave(filename = ruta_archivo_png_go, plot = g_go, device = "png", width = 10, height = 10)
+
+
+
+
+
+# 
+# 
+# # Definir los nombres de archivos y dispositivos gráficos correspondientes
+# formatos <- list(
+#   tiff = list(extension = ".tif", device = tiff, width = 10, height = 10, units = "in", res = 600),
+#   svg = list(extension = ".svg", device = svg, width = 10, height = 10),
+#   pdf = list(extension = ".pdf", device = pdf, width = 10, height = 10)
+# )
+# 
+# # Filtrar y preparar los datos de KEGG
+# termKEGG <- Enrichment_Results %>%
+#   filter(category %in% c("KEGG"))
+# 
+# data_KEGG <- termKEGG %>%
+#   mutate(count = sapply(strsplit(as.character(preferred_names), ","), length))
+# 
+# # Limitar a las 20 principales categorías por grupo
+# top_n_per_group <- data_KEGG %>%
+#   group_by(category) %>%
+#   top_n(20, -fdr) %>%
+#   ungroup()
+# 
+# 
+# # Crear el gráfico de términos KEGG
+# g_kegg <- ggplot(top_n_per_group, aes(x = reorder(description, -fdr), y = count, fill = fdr)) +
+#   geom_bar(stat = "identity", width = 0.6) +  # Ancho constante de las barras
+#   coord_flip() +
+#   scale_fill_gradient(low = "blue", high = "red") +
+#   facet_wrap(~ category, scales = "free_y", ncol = 1, strip.position = "top") +
+#   labs(title = "KEGG terms",
+#        x = "KEGG terms name",
+#        y = "Count",
+#        fill = "FDR value") +
+#   theme_minimal() +
+#   theme(
+#     axis.text.x = element_text(size = 12),
+#     axis.text.y = element_text(size = 10),
+#     strip.text = element_text(size = 14, face = "bold"),
+#     panel.spacing = unit(3, "lines"),
+#     plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+#   )
+# 
+# # Guardar el gráfico en los formatos deseados
+# for (formato in names(formatos)) {
+#   detalles <- formatos[[formato]]
+#   nombre_archivo <- paste0(ruta_guardado, "enrichkegg", detalles$extension)
+#   
+#   if (formato == "tiff") {
+#     detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height, 
+#                     units = detalles$units, res = detalles$res)
+#   } else {
+#     detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height)
+#   }
+#   print(g_kegg)
+#   dev.off()
+# }
+# 
+# # Guardar en PNG adicionalmente
+# ruta_archivo_png <- paste0(ruta_guardado, "enrichkegg.png")
+# ggsave(filename = ruta_archivo_png, plot = g_kegg, device = "png", width = 10, height = 10)
+# 
+# 
+# 
+# # Guardar el gráfico en los formatos deseados
+# for (formato in names(formatos)) {
+#   detalles <- formatos[[formato]]
+#   nombre_archivo <- paste0(ruta_guardado, "enrichkegg", detalles$extension)
+#   
+#   if (formato == "tiff") {
+#     detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height, 
+#                     units = detalles$units, res = detalles$res)
+#   } else {
+#     detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height)
+#   }
+#   print(g_kegg)
+#   dev.off()
+# }
+# 
+# # Guardar en PNG adicionalmente
+# ruta_archivo_png <- paste0(ruta_guardado, "enrichkegg.png")
+# ggsave(filename = ruta_archivo_png, plot = g_kegg, device = "png", width = 10, height = 10)
+# 
+# 
+
+
+
+
+
+
+
+meanc <- apply(tabla_control, 1, mean, na.rm = TRUE)
+meana <- apply(tabla_alcohol_stress, 1, mean, na.rm = TRUE)
+
+# Calcular la media total para cada proteína
+media_total <- (meanc + meana) / 2
+
+# Crear un dataframe con las medias
+mean_data <- data.frame(
+  meana = meana,
+  meanc = meanc,
+  total_mean = media_total
+)
+
+# Renombrar las columnas para consistencia
+colnames(mean_data) <- c("meana", "meanc", "total_mean")
+
+
+# Inicializar vectores para almacenar los resultados
+varianza_intergrupo <- numeric(nrow(tabla_control))
+varianza_intragrupo <- numeric(nrow(tabla_control))
+dfb <- 1 #Grados de Libertad Intergrupo (dfb)
+dfw <- ncol(tabla_control) + ncol(tabla_alcohol_stress) - 2 # grados de libertad dentro de los grupos
+
+for (i in 1:nrow(tabla_control)) {
+  # Calcular SSB para la fila i
+  SSB <- sum((tabla_control[i,] - media_total[i])^2, na.rm = TRUE) + sum((tabla_alcohol_stress[i,] - media_total[i])^2, na.rm = TRUE)
+  varianza_intergrupo[i] <- SSB / dfb
+  
+  # Calcular SSW para la fila i
+  SSW <- sum((tabla_control[i,] - meanc[i])^2, na.rm = TRUE) + sum((tabla_alcohol_stress[i,] - meana[i])^2, na.rm = TRUE)
+  varianza_intragrupo[i] <- SSW / dfw
+}
+# Crear un dataframe con los resultados
+resultado <- data.frame(
+  Proteina = rownames(tabla_control),
+  Intergrupo = varianza_intergrupo,
+  Intragrupo = varianza_intragrupo,
+  varianza_relativa = varianza_intergrupo/varianza_intragrupo
+  
+)
+
+
+proteinas_varianza_alta <- resultado[resultado$varianza_relativa > 13, ]
+proteinas_seleccionadas <- proteinas_varianza_alta$Proteina
+alcohol_subset <- ajustado[proteinas_seleccionadas, ]
+
+# alcohol_subset<-as.data.frame(apply(alcohol_subset, 2, log10))
+
+tabla_control<- alcohol_subset %>%
+  select(all_of(prot_control))
+
+tabla_alcohol_stress<- alcohol_subset %>%
+  select(all_of(prot_alcohol_stress))
+
+rownames(tabla_control)<-proteinas_seleccionadas
+rownames(tabla_alcohol_stress)<-proteinas_seleccionadas
+
+
+tabla_alcohol_stress_datos<-tabla_alcohol_stress
+tabla_alcohol_stress_datos$media<- rowSums(tabla_alcohol_stress, na.rm = TRUE) / ncol(tabla_alcohol_stress)
+
+tabla_control_datos<-tabla_control
+tabla_control_datos$media<- rowSums(tabla_control,na.rm = TRUE) / ncol(tabla_control)
+
+nprot<-nrow(tabla_alcohol_stress) 
+
+
+
+p_alcohol_test <- c()
+normalidad_alcohol <- c()
+normalidad_control <- c()
+
+# Realizar el test y comprobación de normalidad para cada proteína
+for (n in 1:nprot) {
+  c_alcohol_stress <- as.numeric(tabla_alcohol_stress[n, ])
+  c_abstemio_relax <- as.numeric(tabla_control[n, ])
+  
+  # Comprobar normalidad para el grupo "alcohol"
+  if (length(unique(c_alcohol_stress)) == 1) {
+    p_valor_alcohol <- 1
+  } else {
+    p_valor_alcohol <- shapiro.test(c_alcohol_stress)$p.value
+  }
+  normalidad_alcohol <- c(normalidad_alcohol, p_valor_alcohol)
+  
+  # Comprobar normalidad para el grupo control
+  if (length(unique(c_abstemio_relax)) == 1) {
+    p_valor_control <- 1
+  } else {
+    p_valor_control <- shapiro.test(c_abstemio_relax)$p.value
+  }
+  normalidad_control <- c(normalidad_control, p_valor_control)
+  
+  # Verificar si los valores de ambos grupos son idénticos
+  if (all(c_alcohol_stress == c_abstemio_relax)) {
+    p_valor <- 1
+  } else {
+    # Elegir el test estadístico en función de la normalidad de ambos grupos
+    if (p_valor_alcohol > 0.05 && p_valor_control > 0.05) {
+      # Ambos grupos son normales, realizar t-test
+      resultado_alcohol <- t.test(c_alcohol_stress, c_abstemio_relax, var.equal = FALSE)
+    } else {
+      # Al menos uno de los grupos no es normal, realizar Wilcoxon test
+      resultado_alcohol <- wilcox.test(c_alcohol_stress, c_abstemio_relax)
+    }
+    
+    # Almacenar el p-value
+    p_valor <- resultado_alcohol$p.value
+  }
+  
+  # Almacenar el p-value
+  p_alcohol_test <- c(p_alcohol_test, p_valor)
+  p_adjusted_fdr <- p.adjust(p_alcohol_test, method = "fdr")
+}
+gene_symbols <- indice_proteina$`Gene Symbol`[match(rownames(tabla_alcohol_stress), indice_proteina$Accession)]
+
+# Crear un data frame con los resultados
+result_alcohol <- data.frame(
+  Protein = rownames(tabla_alcohol_stress), 
+  Gene = gene_symbols,
+  P_Value = p_alcohol_test, 
+  p_adjusted_fdr,
+  tabla_control_datos$media,
+  tabla_alcohol_stress_datos$media,
+  normalidad_alcohol = normalidad_alcohol,
+  normalidad_control = normalidad_control
+)
+# Filtrar las de proteínas significativas
+significativa_alcohol <- result_alcohol %>% filter(P_Value < 0.05)
+
+
+
+
+
+
+write.xlsx(significativa_alcohol, "data/estadística_alcohol_stress_BR16_machos.xlsx", sheetName = "Desreguladas")
+
+
+cociente_alcohol<-tabla_alcohol_stress_datos$media / tabla_control_datos$media
+cociente_alcohol<-data.frame(cociente_alcohol)
+log2cociente_alcohol<-apply(cociente_alcohol, 1, log2)
+log2cociente_alcohol<-data_frame(log2cociente_alcohol)
+
+p_valor_alcohol<-result_alcohol$p_adjusted_fdr
+p_valor_alcohol<-data.frame(p_valor_alcohol)
+
+p_valor_alcohol<-data.frame(p_valor_alcohol)
+log10pvalor_alcohol<-apply(p_valor_alcohol, 1, log10)
+log10pvalor_alcohol<-data.frame(log10pvalor_alcohol)
+log10pvalor_alcohol<-apply(log10pvalor_alcohol, 1, function(x) -x)
+log10pvalor_alcohol<-data.frame(log10pvalor_alcohol)
+
+descriptions_selected <- entera_experimento$Description[match(result_alcohol$Protein, entera_experimento$Accession)]
+vulcanot<-data.frame(Accession = result_alcohol$Protein,
+                     Gene.Symbol = gene_symbols,
+                     log2cociente_alcohol, 
+                     log10pvalor_alcohol, 
+                     p_adjusted_fdr = p_adjusted_fdr,
+                     Normality_alcohol= normalidad_alcohol,
+                     Normality_control = normalidad_control, 
+                     tabla_alcohol_stress_datos$media, 
+                     tabla_control_datos$media,
+                     Description = descriptions_selected)
+rata_control<-ncol(tabla_control)
+rata_alcohol<-ncol(tabla_alcohol_stress)
+p_valor<-1.30103
+# LFC<-0.58
+LFCP<-0.44
+LFCN<-(-0.62)
+
+a<-  rata_control + rata_alcohol
+ref <- 1.20
+vulcanot_etiquetas<- vulcanot %>% filter(log2cociente_alcohol < LFCN | log2cociente_alcohol > LFCP)
+vulcanot_etiquetas<- vulcanot_etiquetas %>% filter(log10pvalor_alcohol>p_valor)
+
+
+
+# mas altos sobrexpresados
+
+
+tops<- vulcanot_etiquetas %>% filter(log2cociente_alcohol>LFCP)
+tops <- tops %>% arrange(desc(log10pvalor_alcohol)) %>%  # Ordenar el DataFrame por 'log10pvalor_alcohol' en orden descendente
+  head(3)                         # Seleccionar las primeras tres filas
+
+top_rows<-tops
+
+
+# Obtener los valores de la columna 'Accesion' de las tres filas
+sobreexpresadas_evidentes_accesion <- top_rows$Accession
+
+# mas altos subrexpresados
+
+
+high_negative_rows <- vulcanot_etiquetas %>%
+  filter(log2cociente_alcohol < LFCN) %>%   # Filtrar filas con 'log2cociente_alcohol' negativo
+  arrange(desc(log10pvalor_alcohol)) %>%  # Ordenar el DataFrame resultante por 'log10pvalor_alcohol' en orden descendente
+  head(3)                         # Seleccionar lasrownames(abundancias) <- id
+
+
+# Obtener los valores de la columna 'Accesion' de las tres filas
+subrrepresentadas_evidentes_accesion <- high_negative_rows$Accession
+
+vulcanot_etiquetas_evidente<- vulcanot_etiquetas  %>% filter(log10pvalor_alcohol>p_valor)
+
+far_rows <- vulcanot_etiquetas_evidente %>%
+  arrange(desc(log2cociente_alcohol)) %>%  # Ordenar el DataFrame por 'log10pvalor_alcohol' en orden descendente
+  head(3)                         # Seleccionar las primeras tres filas
+
+# Obtener los valores de la columna 'Accesion' de las tres filas
+mas_sobreexpresadas_accesion <- far_rows$Accession
+
+
+
+# Obtener los tres valores máximos de 'log10pvalor_alcohol' para filas con 'log2cociente_alcohol' negativo
+far_negative_rows <- vulcanot_etiquetas %>%
+  filter(log2cociente_alcohol < LFCN & log10pvalor_alcohol > p_valor) %>%   # Filtrar filas con 'log2cociente_alcohol' negativo
+  arrange(log2cociente_alcohol) %>%  # Ordenar el DataFrame resultante por 'log10pvalor_alcohol' en orden descendente
+  head(3)                         # Seleccionar las primeras tres filas
+
+mas_subrrepresentadas_accesion <- far_negative_rows$Accession
+
+accession_values <- c(mas_sobreexpresadas_accesion, mas_subrrepresentadas_accesion, 
+                      subrrepresentadas_evidentes_accesion, sobreexpresadas_evidentes_accesion)
+accession_values <- data.frame("Accession" = accession_values)
+subset_Desreguladas<- subset(vulcanot, Accession %in% accession_values$Accession)
+
+########################################################################################################################
+########################################################################################################################
+#######################################################################################################################
+########################################################################################################################
+########################################################################################################################
+#######################################################################################################################
+############################################################ggsave(filename = ruta_archivo, plot = last_plot(), device = "png", width = 10, height = 10)
+############################################################
+########################################################################################################################
+#######################################################################################################################
+up_regulated<-filter(vulcanot, log2cociente_alcohol>LFCP & log10pvalor_alcohol>p_valor)
+down_regulated <- filter(vulcanot, log2cociente_alcohol < LFCN & log10pvalor_alcohol > p_valor )
+
+
+resto<-anti_join(vulcanot, up_regulated) %>% anti_join(down_regulated)
+up_regulated$Status<-"up-regulated"
+down_regulated$Status<-"down-regulated"
+
+
+
+df_desreguladas<-rbind(down_regulated, up_regulated)
+
+
+
+
+write.xlsx(df_desreguladas, "data/ajustado_efecto_alcohol_BR16_machos.xlsx", sheetName = "Desreguladas")
+write.xlsx(vulcanot, "data/Metodo2/alcohol_stress//35/fosfo/ajustado_estadistica_entera_experimento_BR16_machos.xlsx", sheetName = "todas")
+
+
+
+
+
+
+
+
+
+
+
+repetidos <- indice_proteina$`Gene Symbol`[duplicated(indice_proteina$`Gene Symbol`)]
+nuevo_dataframe <- subset(indice_proteina, `Gene Symbol` %in% repetidos)
+modificar_gene_symbol <- function(accession, gene_symbol) {
+  if (grepl("-", accession)) {
+    # Extraer el sufijo después del guion
+    sufijo <- sub(".*-", "", accession)
+    # Modificar el `Gene Symbol`
+    return(paste0(gene_symbol, "-", sufijo))
+  } else {
+    return(gene_symbol)
+  }
+}
+
+# Aplicar la función a cada fila del dataframe
+nuevo_dataframe$`Gene Symbol` <- mapply(modificar_gene_symbol, nuevo_dataframe$Accession, nuevo_dataframe$`Gene Symbol`)
+for(i in 1:nrow(nuevo_dataframe)) {
+  indice_proteina$`Gene Symbol`[indice_proteina$Accession == nuevo_dataframe$Accession[i]] <- nuevo_dataframe$`Gene Symbol`[i]
+}
+
+
+
+ajustado_tratamiento<- alcohol_subset %>%
+  select(all_of(c(prot_control, prot_alcohol_stress)))
+
+nombre<-rownames(ajustado_tratamiento)
+nombre_genesymbol <- unlist(indice_proteina$`Gene Symbol`[match(nombre, indice_proteina$Accession)])
+# Asignar nombres de filas a la matriz 'alcohol'
+rownames(ajustado_tratamiento) <- nombre_genesymbol
+
+
+matriz_elegidas<-ajustado_tratamiento
+
+
+
+nombre_genesymbol <- unlist(indice_proteina$`Gene Symbol`[match(nombre, indice_proteina$Accession)])
+
+
+transpuesta <- t(matriz_elegidas)
+transpuesta <- data.frame(transpuesta)
+
+
+# sample_metadata$Treatment <- factor(sample_metadata$Treatment, levels = c("Vehicle", "EtOH.stress"))
+
+abundancias<-cbind("alcohol" = sample_metadata[,2], transpuesta)
+# Suponiendo que la primera columna contiene los grupos experimentales
+grupos <- abundancias[, 1]
+datos_numericos <- abundancias[, -1]
+pca_result <- PCA(datos_numericos, graph = FALSE)
+
+
+fviz_pca_ind(pca_result, 
+             geom.ind = "point", 
+             col.ind = grupos, 
+             palette = "jco", 
+             addEllipses = TRUE, 
+             legend.title = "Grupos")
+
+# Obtener las contribuciones de las variables a los componentes principales
+contrib <- get_pca_var(pca_result)$contrib
+
+# Seleccionar las variables que más contribuyen al primer componente
+top_contrib_dim1 <- sort(contrib[,1], decreasing = TRUE)[1:50]
+
+# Seleccionar las variables que más contribuyen al segundo componente
+top_contrib_dim2 <- sort(contrib[,2], decreasing = TRUE)[1:50]
+
+# Unir las variables principales
+top_contrib_vars <- union(names(top_contrib_dim1), names(top_contrib_dim2))
+
+
+# Intersección de proteínas significativas y principales en PCA
+proteinas_interes <- intersect(df_desreguladas$Gene.Symbol, top_contrib_vars)
+
+# Lista de proteínas que son principales en PCA pero no significativas
+no_significativas_pca <- setdiff(top_contrib_vars, df_desreguladas$Gene.Symbol)
+
+# Lista de proteínas que son significativas pero no principales en PCA
+no_principales_significativas <- setdiff(df_desreguladas$Gene.Symbo, top_contrib_vars)
+
+# Definir la ruta donde se guardarán los archivos
+
+# Definir los nombres de archivos y dispositivos gráficos correspondientes
+formatos <- list(
+  tiff = list(extension = ".tif", device = tiff, width = 11, height = 16, units = "in", res = 600),
+  svg = list(extension = ".svg", device = svg, width = 11, height = 16),
+  pdf = list(extension = ".pdf", device = pdf, width = 11, height = 16)
+)
+
+
+p<-fviz_pca_var(pca_result, 
+                axes = c(1, 2), 
+                select.var = list(name = proteinas_interes), 
+                repel = TRUE)
+
+
+
+# Guardar el heatmap en los formatos deseados
+for (formato in names(formatos)) {
+  detalles <- formatos[[formato]]
+  nombre_archivo <- paste0(ruta_guardado, "PCA", detalles$extension)
+  
+  if (formato == "tiff") {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height, 
+                    units = detalles$units, res = detalles$res)
+  } else {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height)
+  }
+  print(p)
+  dev.off()
+}
+
+
+
+biplot<-fviz_pca_biplot(pca_result, 
+                        col.ind = abundancias$alcohol, palette = "jco", 
+                        select.var = list(name = df_desreguladas$Gene.Symbol),
+                        addEllipses = TRUE, label = "var",
+                        col.var = "black", repel = TRUE,
+                        legend.title = "Species") 
+
+
+
+
+# Guardar el heatmap en los formatos deseados
+for (formato in names(formatos)) {
+  detalles <- formatos[[formato]]
+  nombre_archivo <- paste0(ruta_guardado, "PCA_biplot", detalles$extension)
+  
+  if (formato == "tiff") {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height, 
+                    units = detalles$units, res = detalles$res)
+  } else {
+    detalles$device(file = nombre_archivo, width = detalles$width, height = detalles$height)
+  }
+  print(biplot)
+  dev.off()
+}
