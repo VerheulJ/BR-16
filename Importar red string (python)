@@ -1,0 +1,39 @@
+import requests
+import pandas as pd
+from io import StringIO
+
+# URL base del API de STRING
+string_api_url = "https://string-db.org/api"
+
+# Método para obtener la red de interacciones en formato TSV
+method = "tsv/network"
+
+# Lista de proteínas para las que se obtendrán interacciones
+protein_list = [] #inserta lista de genes
+params = {
+    "identifiers": "%0d".join(protein_list),  # Unir las proteínas con el delimitador de retorno de carro
+    "species": 10116,  # Identificador de especie para humano
+    "caller_identity": "MyApp"  # Nombre de tu aplicación
+}
+
+# Construir la URL de la solicitud
+request_url = "/".join([string_api_url, method])
+
+# Realizar la solicitud GET al API de STRING
+response = requests.get(request_url, params=params)
+
+# Verificar el estado de la respuesta
+if response.status_code == 200:
+    # Leer los datos TSV desde la respuesta
+    data = response.text
+    
+    # Leer los datos en un DataFrame de pandas
+    df = pd.read_csv(StringIO(data), delim_whitespace=True)
+    
+    # Guardar el DataFrame en un archivo Excel
+    df.to_excel("RED_*****.xlsx", index=False)
+    
+    print("Los datos se han guardado correctamente en 'RED_****.xlsx'")
+else:
+    print("Error al realizar la solicitud:", response.status_code)
+
